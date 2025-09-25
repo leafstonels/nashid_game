@@ -114,8 +114,8 @@
         my = (e.clientY - rect.top) * scaleY;
       }
 
-      // --- Mode selection before start or after game over ---
-      if (!gameStarted || gameOver) {
+      // --- Mode selection only before first start ---
+      if (!gameStarted) {
         if (mx >= 80 && mx <= 280 && my >= 220 && my <= 270) { // Easy
           mode = "easy";
           gap = 140;
@@ -132,6 +132,14 @@
           loop();
         }
         return;
+      }
+
+      // --- Restart after game over ---
+      if (gameOver) {
+        if (mx >= 120 && mx <= 240 && my >= canvas.height / 2 + 40 && my <= canvas.height / 2 + 80) {
+          resetGame(); // restart with same mode
+          return;
+        }
       }
 
       // --- Flap ---
@@ -220,8 +228,8 @@
     function draw() {
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
-      // Mode selection menu before start or after game over
-      if (!gameStarted || gameOver) {
+      // Mode selection only before first start
+      if (!gameStarted) {
         ctx.fillStyle = "#fff";
         ctx.font = "28px Arial";
         ctx.fillText("Select Mode", 100, 150);
@@ -236,21 +244,7 @@
         ctx.fillStyle = "#fff";
         ctx.fillText("NORMAL", 140, 335);
 
-        // If game over, overlay score box
-        if (gameOver) {
-          ctx.fillStyle = "rgba(0,0,0,0.5)";
-          ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
-
-          ctx.fillStyle = "#fff";
-          ctx.font = "32px Arial";
-          ctx.fillText("Game Over!", 95, canvas.height / 2 - 50);
-
-          ctx.font = "20px Arial";
-          ctx.fillText("Score: " + score, 140, canvas.height / 2 - 10);
-          ctx.fillText("Best: " + highScore, 140, canvas.height / 2 + 20);
-        }
-
-        return;
+        return; // don't draw game yet
       }
 
       // --- Game draw ---
@@ -268,6 +262,26 @@
       ctx.font = "24px Arial";
       ctx.fillText("Score: " + score, 10, 30);
       ctx.fillText("Best: " + highScore, 10, 60);
+
+      // Game over overlay
+      if (gameOver) {
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
+
+        ctx.fillStyle = "#fff";
+        ctx.font = "32px Arial";
+        ctx.fillText("Game Over!", 95, canvas.height / 2 - 50);
+
+        ctx.font = "20px Arial";
+        ctx.fillText("Score: " + score, 140, canvas.height / 2 - 10);
+        ctx.fillText("Best: " + highScore, 140, canvas.height / 2 + 20);
+
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(120, canvas.height / 2 + 40, 120, 40);
+        ctx.fillStyle = "#000";
+        ctx.font = "18px Arial";
+        ctx.fillText("RESTART", 140, canvas.height / 2 + 70);
+      }
     }
 
     // --- Game loop ---
@@ -280,7 +294,7 @@
       requestAnimationFrame(loop);
     }
 
-    draw(); // Initial render
+    draw(); // initial render
   </script>
 </body>
 </html>

@@ -27,15 +27,15 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
 // ---------------- ASSETS ----------------
-let bg = new Image(); bg.src = "bg.png";
+let bg = new Image(); bg.src = "background.png";
 let ground = new Image(); ground.src = "ground.png";
 let birdImg = new Image(); birdImg.src = "bird.png";
 let pipeTop = new Image(); pipeTop.src = "pipeTop.png";
 let pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
 
-let flapSound = new Audio("flap.mp3");
+//let flapSound = new Audio("flap.mp3");
 let pointSound = new Audio("point.mp3");
-let deathSounds = [new Audio("death1.mp3"), new Audio("death2.mp3")];
+let deathSounds = [new Audio("death1.mp3"), new Audio("death2.mp3"), new Audio("death3.mp3"), new Audio("death4.mp3"), new Audio("death5.mp3"), new Audio("death6.mp3"), new Audio("death7.mp3"), new Audio("death8.mp3"), new Audio("death9.mp3"), new Audio("death2.mp10")];
 
 // ---------------- PRELOAD ----------------
 let assetsLoaded = 0;
@@ -236,3 +236,4 @@ loop();
 </script>
 </body>
 </html>
+

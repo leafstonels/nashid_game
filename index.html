@@ -65,8 +65,8 @@
     let audioUnlocked = false;
 
     // --- Difficulty variables ---
-    let mode = null; // "easy" or "hard"
-    let pipeVariation = 0; // vertical variation of pipes
+    let mode = null; // "easy" or "normal"
+    let pipeVariation = 0;
 
     // --- Sounds ---
     const flapSound = new Audio("flap.mp3");
@@ -114,8 +114,8 @@
         my = (e.clientY - rect.top) * scaleY;
       }
 
-      // --- Mode selection ---
-      if (!gameStarted) {
+      // --- Mode selection before start or after game over ---
+      if (!gameStarted || gameOver) {
         if (mx >= 80 && mx <= 280 && my >= 220 && my <= 270) { // Easy
           mode = "easy";
           gap = 140;
@@ -123,10 +123,10 @@
           gameStarted = true;
           resetGame();
           loop();
-        } else if (mx >= 80 && mx <= 280 && my >= 300 && my <= 350) { // Hard
-          mode = "hard";
-          gap = 100;
-          pipeVariation = canvas.height / 2 - 50;
+        } else if (mx >= 80 && mx <= 280 && my >= 300 && my <= 350) { // Normal
+          mode = "normal";
+          gap = 120;
+          pipeVariation = canvas.height / 2 - gap;
           gameStarted = true;
           resetGame();
           loop();
@@ -134,15 +134,9 @@
         return;
       }
 
-      if (gameOver) {
-        if (mx >= 120 && mx <= 240 && my >= canvas.height / 2 + 40 && my <= canvas.height / 2 + 80) {
-          resetGame();
-          return;
-        }
-      } else {
-        bird.velocity = bird.lift;
-        playFlapSound();
-      }
+      // --- Flap ---
+      bird.velocity = bird.lift;
+      playFlapSound();
     }
 
     function playFlapSound() {
@@ -226,8 +220,8 @@
     function draw() {
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
-      // Mode selection menu
-      if (!gameStarted) {
+      // Mode selection menu before start or after game over
+      if (!gameStarted || gameOver) {
         ctx.fillStyle = "#fff";
         ctx.font = "28px Arial";
         ctx.fillText("Select Mode", 100, 150);
@@ -240,48 +234,40 @@
         ctx.fillStyle = "#F44336";
         ctx.fillRect(80, 300, 200, 50);
         ctx.fillStyle = "#fff";
-        ctx.fillText("HARD", 160, 335);
+        ctx.fillText("NORMAL", 140, 335);
+
+        // If game over, overlay score box
+        if (gameOver) {
+          ctx.fillStyle = "rgba(0,0,0,0.5)";
+          ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
+
+          ctx.fillStyle = "#fff";
+          ctx.font = "32px Arial";
+          ctx.fillText("Game Over!", 95, canvas.height / 2 - 50);
+
+          ctx.font = "20px Arial";
+          ctx.fillText("Score: " + score, 140, canvas.height / 2 - 10);
+          ctx.fillText("Best: " + highScore, 140, canvas.height / 2 + 20);
+        }
+
         return;
       }
 
-      // Pipes
+      // --- Game draw ---
       pipes.forEach(p => {
         ctx.drawImage(pipeTop, p.x, p.y - pipeTop.height);
         ctx.drawImage(pipeBottom, p.x, p.y + gap);
       });
 
-      // Ground
       ctx.drawImage(ground, groundX, canvas.height - ground.height);
       ctx.drawImage(ground, groundX + canvas.width, canvas.height - ground.height);
 
-      // Bird
       ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
 
-      // Score
       ctx.fillStyle = "#fff";
       ctx.font = "24px Arial";
       ctx.fillText("Score: " + score, 10, 30);
       ctx.fillText("Best: " + highScore, 10, 60);
-
-      // Game over screen
-      if (gameOver) {
-        ctx.fillStyle = "rgba(0,0,0,0.5)";
-        ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
-
-        ctx.fillStyle = "#fff";
-        ctx.font = "32px Arial";
-        ctx.fillText("Game Over!", 95, canvas.height / 2 - 50);
-
-        ctx.font = "20px Arial";
-        ctx.fillText("Score: " + score, 140, canvas.height / 2 - 10);
-        ctx.fillText("Best: " + highScore, 140, canvas.height / 2 + 20);
-
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(120, canvas.height / 2 + 40, 120, 40);
-        ctx.fillStyle = "#000";
-        ctx.font = "18px Arial";
-        ctx.fillText("RESTART", 140, canvas.height / 2 + 70);
-      }
     }
 
     // --- Game loop ---

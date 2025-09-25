@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>nashid myran</title>
+  <style>
+    body {
+      margin: 0;
+      background: #70c5ce;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    canvas {
+      border: 2px solid #333;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="360" height="640"></canvas>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // 📌 Load images
+    const bg = new Image(); bg.src = "background.png";
+    const ground = new Image(); ground.src = "ground.png";
+    const birdImg = new Image(); birdImg.src = "bird.png";
+    const pipeTop = new Image(); pipeTop.src = "pipeTop.png";
+    const pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
+
+    // 📌 Game variables
+    //let bird = { x: 50, y: 150, width: 34, height: 24, gravity: 0.25, lift: -6, velocity: 0 };
+    let bird = { x: 50, y: 150, width: 68, height: 48, gravity: 0.25, lift: -6, velocity: 0 };
+    let pipes = [];
+    let gap = 120;
+    let frame = 0;
+    let score = 0;
+    let highScore = localStorage.getItem("highScore") || 0;
+    let groundX = 0;
+    let gameOver = false;
+    let gameStarted = false;
+
+    // 📌 Sounds
+    const flapSound = new Audio("flap.mp3");
+    const pointSound = new Audio("point.mp3");
+    const deathSounds = [
+      new Audio("death1.mp3"),
+      new Audio("death2.mp3"),
+      new Audio("death3.mp3"),
+      new Audio("death4.mp3"),
+      new Audio("death5.mp3"),
+      new Audio("death6.mp3"),
+      new Audio("death7.mp3"),
+      new Audio("death8.mp3"),
+      new Audio("death9.mp3"),
+      new Audio("death10.mp3")
+    ];
+    let currentDeathSound = null; // Track currently playing death sound
+
+    // 📌 Controls
+    document.addEventListener("keydown", handleInput);
+    canvas.addEventListener("click", handleInput);
+
+    function handleInput(e) {
+      const rect = canvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      if (gameOver) {
+        // Restart button click
+        if (mx >= 120 && mx <= 240 && my >= canvas.height / 2 + 40 && my <= canvas.height / 2 + 80) {
+          resetGame();
+          return;
+        }
+      }
+
+      if (!gameStarted) {
+        gameStarted = true;
+        resetGame();
+        loop();
+      } else if (!gameOver) {
+        bird.velocity = bird.lift;
+        playFlapSound();
+      }
+    }
+
+    function playFlapSound() {
+      const sound = flapSound.cloneNode();
+      sound.play();
+    }
+
+    // 📌 Reset game
+    function resetGame() {
+      bird.y = 150;
+      bird.velocity = 0;
+      pipes = [];
+      score = 0;
+      frame = 0;
+      gameOver = false;
+
+      // Stop any playing death sound
+      if (currentDeathSound) {
+        currentDeathSound.pause();
+        currentDeathSound.currentTime = 0;
+        currentDeathSound = null;
+      }
+    }
+
+    // 📌 Update logic
+    function update() {
+      bird.velocity += bird.gravity;
+      bird.y += bird.velocity;
+
+      // Ground collision
+      if (bird.y + bird.height >= canvas.height - ground.height) {
+        playRandomDeathSound();
+        gameOver = true;
+        updateHighScore();
+      }
+
+      // Add pipes
+      if (frame % 90 === 0) {
+        let pipeY = Math.floor(Math.random() * (canvas.height - gap - 200)) + 50;
+        pipes.push({ x: canvas.width, y: pipeY, scored: false });
+      }
+
+      // Move pipes
+      for (let i = 0; i < pipes.length; i++) {
+        let p = pipes[i];
+        p.x -= 2;
+
+        // Collision
+        if (
+          bird.x < p.x + pipeTop.width &&
+          bird.x + bird.width > p.x &&
+          (bird.y < p.y || bird.y + bird.height > p.y + gap)
+        ) {
+          playRandomDeathSound();
+          gameOver = true;
+          updateHighScore();
+        }
+
+        // Score
+        if (!p.scored && p.x + pipeTop.width < bird.x) {
+          score++;
+          p.scored = true;
+          const point = pointSound.cloneNode();
+          point.play();
+        }
+      }
+
+      // Remove off-screen pipes
+      pipes = pipes.filter(p => p.x + pipeTop.width > 0);
+
+      // Scroll ground
+      groundX = (groundX - 2) % canvas.width;
+    }
+
+    // 📌 High score logic
+    function updateHighScore() {
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem("highScore", highScore);
+      }
+    }
+
+    // 📌 Play random death sound
+    function playRandomDeathSound() {
+      if (currentDeathSound) currentDeathSound.pause(); // Stop previous
+      const sound = deathSounds[Math.floor(Math.random() * deathSounds.length)].cloneNode();
+      sound.play();
+      currentDeathSound = sound;
+    }
+
+    // 📌 Draw everything
+    function draw() {
+      ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+
+      if (!gameStarted) {
+        ctx.fillStyle = "#fff";
+        ctx.font = "32px Arial";
+        ctx.fillText("myran nashid", 110, 250);
+
+        ctx.font = "20px Arial";
+        ctx.fillText("Click anywhere to Start", 60, 320);
+        return;
+      }
+
+      // Pipes
+      pipes.forEach(p => {
+        ctx.drawImage(pipeTop, p.x, p.y - pipeTop.height);
+        ctx.drawImage(pipeBottom, p.x, p.y + gap);
+      });
+
+      // Ground
+      ctx.drawImage(ground, groundX, canvas.height - ground.height);
+      ctx.drawImage(ground, groundX + canvas.width, canvas.height - ground.height);
+
+      // Bird
+      ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+
+      // Score
+      ctx.fillStyle = "#fff";
+      ctx.font = "24px Arial";
+      ctx.fillText("Score: " + score, 10, 30);
+      ctx.fillText("Best: " + highScore, 10, 60);
+
+      // Game over screen
+      if (gameOver) {
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
+
+        ctx.fillStyle = "#fff";
+        ctx.font = "32px Arial";
+        ctx.fillText("Game Over!", 95, canvas.height / 2 - 50);
+
+        ctx.font = "20px Arial";
+        ctx.fillText("Score: " + score, 140, canvas.height / 2 - 10);
+        ctx.fillText("Best: " + highScore, 140, canvas.height / 2 + 20);
+
+        // Restart button
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(120, canvas.height / 2 + 40, 120, 40);
+        ctx.fillStyle = "#000";
+        ctx.font = "18px Arial";
+        ctx.fillText("RESTART", 140, canvas.height / 2 + 70);
+      }
+    }
+
+    // 📌 Game loop
+    function loop() {
+      if (!gameOver) {
+        update();
+        frame++;
+      }
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    draw(); // Start screen render
+  </script>
+</body>
+</html>

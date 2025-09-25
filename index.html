@@ -19,7 +19,6 @@
     canvas {
       border: 2px solid #333;
       border-radius: 8px;
-      /* canvas will scale to fit screen */
       width: 100%;
       height: 100%;
       max-width: 100vw;
@@ -29,7 +28,6 @@
   </style>
 </head>
 <body>
-  <!-- Original canvas size kept for internal coordinates -->
   <canvas id="gameCanvas" width="360" height="640"></canvas>
 
   <script>
@@ -88,8 +86,12 @@
 
     function handleInput(e) {
       const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      // Map mouse click to internal canvas coordinates
+      const mx = (e.clientX - rect.left) * scaleX;
+      const my = (e.clientY - rect.top) * scaleY;
 
       if (gameOver) {
         if (mx >= 120 && mx <= 240 && my >= canvas.height / 2 + 40 && my <= canvas.height / 2 + 80) {

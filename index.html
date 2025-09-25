@@ -3,27 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <title>nashid myran</title>
+  <!-- Responsive viewport -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
-    body {
+    html, body {
       margin: 0;
+      padding: 0;
+      height: 100%;
       background: #70c5ce;
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 100vh;
     }
+
     canvas {
       border: 2px solid #333;
       border-radius: 8px;
+      /* canvas will scale to fit screen */
+      width: 100%;
+      height: 100%;
+      max-width: 100vw;
+      max-height: 100vh;
+      display: block;
     }
   </style>
 </head>
 <body>
+  <!-- Original canvas size kept for internal coordinates -->
   <canvas id="gameCanvas" width="360" height="640"></canvas>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
+
+    // Scale canvas drawing to fit screen dynamically
+    function resizeCanvas() {
+      const scaleX = window.innerWidth / canvas.width;
+      const scaleY = window.innerHeight / canvas.height;
+      const scale = Math.min(scaleX, scaleY);
+      canvas.style.width = canvas.width * scale + "px";
+      canvas.style.height = canvas.height * scale + "px";
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
     // 📌 Load images
     const bg = new Image(); bg.src = "background.png";
@@ -33,7 +55,6 @@
     const pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
 
     // 📌 Game variables
-    //let bird = { x: 50, y: 150, width: 34, height: 24, gravity: 0.25, lift: -6, velocity: 0 };
     let bird = { x: 50, y: 150, width: 68, height: 48, gravity: 0.25, lift: -6, velocity: 0 };
     let pipes = [];
     let gap = 120;
@@ -59,7 +80,7 @@
       new Audio("death9.mp3"),
       new Audio("death10.mp3")
     ];
-    let currentDeathSound = null; // Track currently playing death sound
+    let currentDeathSound = null;
 
     // 📌 Controls
     document.addEventListener("keydown", handleInput);
@@ -71,7 +92,6 @@
       const my = e.clientY - rect.top;
 
       if (gameOver) {
-        // Restart button click
         if (mx >= 120 && mx <= 240 && my >= canvas.height / 2 + 40 && my <= canvas.height / 2 + 80) {
           resetGame();
           return;
@@ -102,7 +122,6 @@
       frame = 0;
       gameOver = false;
 
-      // Stop any playing death sound
       if (currentDeathSound) {
         currentDeathSound.pause();
         currentDeathSound.currentTime = 0;
@@ -115,25 +134,21 @@
       bird.velocity += bird.gravity;
       bird.y += bird.velocity;
 
-      // Ground collision
       if (bird.y + bird.height >= canvas.height - ground.height) {
         playRandomDeathSound();
         gameOver = true;
         updateHighScore();
       }
 
-      // Add pipes
       if (frame % 90 === 0) {
         let pipeY = Math.floor(Math.random() * (canvas.height - gap - 200)) + 50;
         pipes.push({ x: canvas.width, y: pipeY, scored: false });
       }
 
-      // Move pipes
       for (let i = 0; i < pipes.length; i++) {
         let p = pipes[i];
         p.x -= 2;
 
-        // Collision
         if (
           bird.x < p.x + pipeTop.width &&
           bird.x + bird.width > p.x &&
@@ -144,7 +159,6 @@
           updateHighScore();
         }
 
-        // Score
         if (!p.scored && p.x + pipeTop.width < bird.x) {
           score++;
           p.scored = true;
@@ -153,14 +167,10 @@
         }
       }
 
-      // Remove off-screen pipes
       pipes = pipes.filter(p => p.x + pipeTop.width > 0);
-
-      // Scroll ground
       groundX = (groundX - 2) % canvas.width;
     }
 
-    // 📌 High score logic
     function updateHighScore() {
       if (score > highScore) {
         highScore = score;
@@ -168,9 +178,8 @@
       }
     }
 
-    // 📌 Play random death sound
     function playRandomDeathSound() {
-      if (currentDeathSound) currentDeathSound.pause(); // Stop previous
+      if (currentDeathSound) currentDeathSound.pause();
       const sound = deathSounds[Math.floor(Math.random() * deathSounds.length)].cloneNode();
       sound.play();
       currentDeathSound = sound;
@@ -190,26 +199,21 @@
         return;
       }
 
-      // Pipes
       pipes.forEach(p => {
         ctx.drawImage(pipeTop, p.x, p.y - pipeTop.height);
         ctx.drawImage(pipeBottom, p.x, p.y + gap);
       });
 
-      // Ground
       ctx.drawImage(ground, groundX, canvas.height - ground.height);
       ctx.drawImage(ground, groundX + canvas.width, canvas.height - ground.height);
 
-      // Bird
       ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
 
-      // Score
       ctx.fillStyle = "#fff";
       ctx.font = "24px Arial";
       ctx.fillText("Score: " + score, 10, 30);
       ctx.fillText("Best: " + highScore, 10, 60);
 
-      // Game over screen
       if (gameOver) {
         ctx.fillStyle = "rgba(0,0,0,0.5)";
         ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
@@ -222,7 +226,6 @@
         ctx.fillText("Score: " + score, 140, canvas.height / 2 - 10);
         ctx.fillText("Best: " + highScore, 140, canvas.height / 2 + 20);
 
-        // Restart button
         ctx.fillStyle = "#fff";
         ctx.fillRect(120, canvas.height / 2 + 40, 120, 40);
         ctx.fillStyle = "#000";
@@ -231,7 +234,6 @@
       }
     }
 
-    // 📌 Game loop
     function loop() {
       if (!gameOver) {
         update();

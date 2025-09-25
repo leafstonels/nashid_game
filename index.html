@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <title>nashid myran</title>
-  <!-- Responsive viewport -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     html, body {
@@ -14,7 +13,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      touch-action: none; /* Prevent default touch behaviors */
+      touch-action: none;
     }
 
     canvas {
@@ -63,6 +62,11 @@
     let groundX = 0;
     let gameOver = false;
     let gameStarted = false;
+    let audioUnlocked = false;
+
+    // --- Difficulty variables ---
+    let mode = null; // "easy" or "hard"
+    let pipeVariation = 0; // vertical variation of pipes
 
     // --- Sounds ---
     const flapSound = new Audio("flap.mp3");
@@ -75,25 +79,59 @@
     ];
     let currentDeathSound = null;
 
+    function unlockAudio() {
+      [flapSound, pointSound, ...deathSounds].forEach(sound => {
+        const s = sound.cloneNode();
+        s.play().catch(() => {});
+        s.pause();
+        s.currentTime = 0;
+      });
+    }
+
     // --- Controls ---
     document.addEventListener("keydown", handleInput);
     canvas.addEventListener("click", handleInput);
     canvas.addEventListener("touchstart", handleInput, { passive: false });
 
     function handleInput(e) {
-      e.preventDefault(); // Prevent scrolling on mobile
+      e.preventDefault();
+
+      if (!audioUnlocked) {
+        unlockAudio();
+        audioUnlocked = true;
+      }
 
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
 
       let mx, my;
-      if (e.touches) { // Touch events
+      if (e.touches) {
         mx = (e.touches[0].clientX - rect.left) * scaleX;
         my = (e.touches[0].clientY - rect.top) * scaleY;
-      } else { // Mouse clicks
+      } else {
         mx = (e.clientX - rect.left) * scaleX;
         my = (e.clientY - rect.top) * scaleY;
+      }
+
+      // --- Mode selection ---
+      if (!gameStarted) {
+        if (mx >= 80 && mx <= 280 && my >= 220 && my <= 270) { // Easy
+          mode = "easy";
+          gap = 140;
+          pipeVariation = 50;
+          gameStarted = true;
+          resetGame();
+          loop();
+        } else if (mx >= 80 && mx <= 280 && my >= 300 && my <= 350) { // Hard
+          mode = "hard";
+          gap = 100;
+          pipeVariation = canvas.height / 2 - 50;
+          gameStarted = true;
+          resetGame();
+          loop();
+        }
+        return;
       }
 
       if (gameOver) {
@@ -101,13 +139,7 @@
           resetGame();
           return;
         }
-      }
-
-      if (!gameStarted) {
-        gameStarted = true;
-        resetGame();
-        loop();
-      } else if (!gameOver) {
+      } else {
         bird.velocity = bird.lift;
         playFlapSound();
       }
@@ -146,7 +178,9 @@
       }
 
       if (frame % 90 === 0) {
-        let pipeY = Math.floor(Math.random() * (canvas.height - gap - 200)) + 50;
+        let centerY = canvas.height / 2;
+        let variation = pipeVariation || (canvas.height / 2 - gap);
+        let pipeY = centerY + Math.floor(Math.random() * variation * 2) - variation;
         pipes.push({ x: canvas.width, y: pipeY, scored: false });
       }
 
@@ -192,31 +226,44 @@
     function draw() {
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
+      // Mode selection menu
       if (!gameStarted) {
         ctx.fillStyle = "#fff";
-        ctx.font = "32px Arial";
-        ctx.fillText("myran nashid", 110, 250);
+        ctx.font = "28px Arial";
+        ctx.fillText("Select Mode", 100, 150);
 
-        ctx.font = "20px Arial";
-        ctx.fillText("Click/Tap to Start", 60, 320);
+        ctx.fillStyle = "#4CAF50";
+        ctx.fillRect(80, 220, 200, 50);
+        ctx.fillStyle = "#fff";
+        ctx.fillText("EASY", 160, 255);
+
+        ctx.fillStyle = "#F44336";
+        ctx.fillRect(80, 300, 200, 50);
+        ctx.fillStyle = "#fff";
+        ctx.fillText("HARD", 160, 335);
         return;
       }
 
+      // Pipes
       pipes.forEach(p => {
         ctx.drawImage(pipeTop, p.x, p.y - pipeTop.height);
         ctx.drawImage(pipeBottom, p.x, p.y + gap);
       });
 
+      // Ground
       ctx.drawImage(ground, groundX, canvas.height - ground.height);
       ctx.drawImage(ground, groundX + canvas.width, canvas.height - ground.height);
 
+      // Bird
       ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
 
+      // Score
       ctx.fillStyle = "#fff";
       ctx.font = "24px Arial";
       ctx.fillText("Score: " + score, 10, 30);
       ctx.fillText("Best: " + highScore, 10, 60);
 
+      // Game over screen
       if (gameOver) {
         ctx.fillStyle = "rgba(0,0,0,0.5)";
         ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
@@ -247,7 +294,7 @@
       requestAnimationFrame(loop);
     }
 
-    draw(); // Initial start screen
+    draw(); // Initial render
   </script>
 </body>
 </html>

@@ -1,216 +1,300 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Flappy Game</title>
-<style>
-  body {
-    margin: 0;
-    background: #000;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    overflow: hidden;
-  }
-  canvas {
-    background: #70c5ce;
-    display: block;
-  }
-</style>
+  <meta charset="UTF-8">
+  <title>nashid myran</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #70c5ce;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      touch-action: none;
+    }
+
+    canvas {
+      border: 2px solid #333;
+      border-radius: 8px;
+      width: 100%;
+      height: 100%;
+      max-width: 100vw;
+      max-height: 100vh;
+      display: block;
+    }
+  </style>
 </head>
 <body>
-<canvas id="gameCanvas" width="400" height="600"></canvas>
-<script>
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
+  <canvas id="gameCanvas" width="360" height="640"></canvas>
 
-// ---------------- ASSETS ----------------
-let bg = new Image(); bg.src = "bg.png";
-let ground = new Image(); ground.src = "ground.png";
-let birdImg = new Image(); birdImg.src = "bird.png";
-let pipeTop = new Image(); pipeTop.src = "pipeTop.png";
-let pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
 
-let flapSound = new Audio("flap.wav");
-let pointSound = new Audio("point.wav");
-let deathSounds = [new Audio("die1.wav"), new Audio("die2.wav")];
+    // --- Canvas scaling ---
+    function resizeCanvas() {
+      const scaleX = window.innerWidth / canvas.width;
+      const scaleY = window.innerHeight / canvas.height;
+      const scale = Math.min(scaleX, scaleY);
+      canvas.style.width = canvas.width * scale + "px";
+      canvas.style.height = canvas.height * scale + "px";
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
-// ---------------- PRELOAD ----------------
-let assetsLoaded = 0;
-let totalAssets = 5 + 2 + deathSounds.length; 
-let showMenu = false;
-let loadingStart = Date.now();
+    // --- Load images ---
+    const bg = new Image(); bg.src = "background.png";
+    const ground = new Image(); ground.src = "ground.png";
+    const birdImg = new Image(); birdImg.src = "bird.png";
+    const pipeTop = new Image(); pipeTop.src = "pipeTop.png";
+    const pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
 
-function assetLoaded() {
-  assetsLoaded++;
-  if (assetsLoaded >= totalAssets) {
-    setTimeout(() => { showMenu = true; }, 300); // smooth transition
-  }
-}
+    // --- Game variables ---
+    let bird = { x: 50, y: 150, width: 68, height: 48, gravity: 0.25, lift: -6, velocity: 0 };
+    let pipes = [];
+    let gap = 120;
+    let frame = 0;
+    let score = 0;
+    let highScore = localStorage.getItem("highScore") || 0;
+    let groundX = 0;
+    let gameOver = false;
+    let gameStarted = false;
+    let audioUnlocked = false;
 
-// preload images
-[bg, ground, birdImg, pipeTop, pipeBottom].forEach(img => {
-  img.onload = assetLoaded;
-});
+    // --- Difficulty variables ---
+    let mode = null; // "easy" or "normal"
+    let pipeVariation = 0;
 
-// preload sounds
-[flapSound, pointSound, ...deathSounds].forEach(s => {
-  s.addEventListener("loadeddata", assetLoaded, { once: true });
-});
+    // --- Sounds ---
+    const flapSound = new Audio("flap.mp3");
+    const pointSound = new Audio("point.mp3");
+    const deathSounds = [
+      new Audio("death1.mp3"), new Audio("death2.mp3"), new Audio("death3.mp3"),
+      new Audio("death4.mp3"), new Audio("death5.mp3"), new Audio("death6.mp3"),
+      new Audio("death7.mp3"), new Audio("death8.mp3"), new Audio("death9.mp3"),
+      new Audio("death10.mp3")
+    ];
+    let currentDeathSound = null;
 
-// fallback: unlock menu after 3s even if some sounds stall
-setTimeout(() => { if (!showMenu) showMenu = true; }, 3000);
+    function unlockAudio() {
+      [flapSound, pointSound, ...deathSounds].forEach(sound => {
+        const s = sound.cloneNode();
+        s.play().catch(() => {});
+        s.pause();
+        s.currentTime = 0;
+      });
+    }
 
-// ---------------- GAME STATE ----------------
-let gameOver = false;
-let started = false;
-let frame = 0;
-let pipes = [];
-let gap = 120;
-let groundX = 0;
-let score = 0;
-let highScore = 0;
+    // --- Controls ---
+    document.addEventListener("keydown", handleInput);
+    canvas.addEventListener("click", handleInput);
+    canvas.addEventListener("touchstart", handleInput, { passive: false });
 
-let bird = { 
-  x: 50, y: 150, width: 68, height: 48, 
-  gravity: 0.25, lift: -6, velocity: 0 
-};
+    function handleInput(e) {
+      e.preventDefault();
 
-function resetGame() {
-  bird.y = 150;
-  bird.velocity = 0;
-  pipes = [];
-  score = 0;
-  frame = 0;
-  gameOver = false;
-  started = true;
-}
+      if (!audioUnlocked) {
+        unlockAudio();
+        audioUnlocked = true;
+      }
 
-// ---------------- INPUT ----------------
-document.addEventListener("keydown", e => {
-  if (e.code === "Space") {
-    if (!started && showMenu) resetGame();
-    else if (!gameOver) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      let mx, my;
+      if (e.touches) {
+        mx = (e.touches[0].clientX - rect.left) * scaleX;
+        my = (e.touches[0].clientY - rect.top) * scaleY;
+      } else {
+        mx = (e.clientX - rect.left) * scaleX;
+        my = (e.clientY - rect.top) * scaleY;
+      }
+
+      // --- Mode selection only before first start ---
+      if (!gameStarted) {
+        if (mx >= 80 && mx <= 280 && my >= 220 && my <= 270) { // Easy
+          mode = "easy";
+          gap = 140;
+          pipeVariation = 50;
+          gameStarted = true;
+          resetGame();
+          loop();
+        } else if (mx >= 80 && mx <= 280 && my >= 300 && my <= 350) { // Normal
+          mode = "normal";
+          gap = 120;
+          pipeVariation = canvas.height / 2 - gap;
+          gameStarted = true;
+          resetGame();
+          loop();
+        }
+        return;
+      }
+
+      // --- Restart after game over ---
+      if (gameOver) {
+        if (mx >= 120 && mx <= 240 && my >= canvas.height / 2 + 40 && my <= canvas.height / 2 + 80) {
+          resetGame(); // restart with same mode
+          return;
+        }
+      }
+
+      // --- Flap ---
       bird.velocity = bird.lift;
-      flapSound.play();
-    } else {
-      resetGame();
-    }
-  }
-});
-
-canvas.addEventListener("mousedown", () => {
-  if (!started && showMenu) resetGame();
-  else if (!gameOver) {
-    bird.velocity = bird.lift;
-    flapSound.play();
-  } else {
-    resetGame();
-  }
-});
-
-// ---------------- UPDATE ----------------
-function update() {
-  bird.velocity += bird.gravity;
-  bird.y += bird.velocity;
-
-  if (frame % 90 === 0) {
-    let minY = 80;
-    let maxY = canvas.height - gap - 160;
-    let pipeY = Math.floor(Math.random() * (maxY - minY)) + minY;
-    pipes.push({ x: canvas.width, y: pipeY, scored: false });
-  }
-
-  pipes.forEach(p => p.x -= 2);
-  pipes = pipes.filter(p => p.x + pipeTop.width > 0);
-
-  pipes.forEach(p => {
-    if (!p.scored && p.x + pipeTop.width < bird.x) {
-      score++;
-      p.scored = true;
-      pointSound.play();
+      playFlapSound();
     }
 
-    if (
-      bird.x < p.x + pipeTop.width &&
-      bird.x + bird.width > p.x &&
-      (bird.y < p.y || bird.y + bird.height > p.y + gap)
-    ) {
-      playRandomDeathSound();
-      gameOver = true;
-      highScore = Math.max(highScore, score);
+    function playFlapSound() {
+      const sound = flapSound.cloneNode();
+      sound.play();
     }
-  });
 
-  if (bird.y + bird.height > canvas.height - ground.height) {
-    playRandomDeathSound();
-    gameOver = true;
-    highScore = Math.max(highScore, score);
-  }
+    // --- Reset game ---
+    function resetGame() {
+      bird.y = 150;
+      bird.velocity = 0;
+      pipes = [];
+      score = 0;
+      frame = 0;
+      gameOver = false;
 
-  groundX = (groundX - 2) % canvas.width;
-  frame++;
-}
+      if (currentDeathSound) {
+        currentDeathSound.pause();
+        currentDeathSound.currentTime = 0;
+        currentDeathSound = null;
+      }
+    }
 
-function playRandomDeathSound() {
-  let s = deathSounds[Math.floor(Math.random() * deathSounds.length)];
-  s.currentTime = 0;
-  s.play();
-}
+    // --- Game logic ---
+    function update() {
+      bird.velocity += bird.gravity;
+      bird.y += bird.velocity;
 
-// ---------------- DRAW ----------------
-function draw() {
-  if (!showMenu) {
-    // loading screen
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#fff";
-    ctx.font = "20px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("Loading... " + Math.floor((assetsLoaded / totalAssets) * 100) + "%", canvas.width/2, canvas.height/2);
-    return;
-  }
+      if (bird.y + bird.height >= canvas.height - ground.height) {
+        playRandomDeathSound();
+        gameOver = true;
+        updateHighScore();
+      }
 
-  ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+      if (frame % 90 === 0) {
+        let centerY = canvas.height / 2;
+        let variation = pipeVariation || (canvas.height / 2 - gap);
+        let pipeY = centerY + Math.floor(Math.random() * variation * 2) - variation;
+        pipes.push({ x: canvas.width, y: pipeY, scored: false });
+      }
 
-  pipes.forEach(p => {
-    ctx.drawImage(pipeTop, p.x, p.y - pipeTop.height);
-    ctx.drawImage(pipeBottom, p.x, p.y + gap);
-  });
+      pipes.forEach(p => {
+        p.x -= 2;
 
-  ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+        if (
+          bird.x < p.x + pipeTop.width &&
+          bird.x + bird.width > p.x &&
+          (bird.y < p.y || bird.y + bird.height > p.y + gap)
+        ) {
+          playRandomDeathSound();
+          gameOver = true;
+          updateHighScore();
+        }
 
-  ctx.drawImage(ground, groundX, canvas.height - ground.height);
-  ctx.drawImage(ground, groundX + canvas.width, canvas.height - ground.height);
+        if (!p.scored && p.x + pipeTop.width < bird.x) {
+          score++;
+          p.scored = true;
+          pointSound.cloneNode().play();
+        }
+      });
 
-  ctx.fillStyle = "#fff";
-  ctx.font = "20px Arial";
-  ctx.textAlign = "center";
+      pipes = pipes.filter(p => p.x + pipeTop.width > 0);
+      groundX = (groundX - 2) % canvas.width;
+    }
 
-  if (!started) {
-    ctx.font = "30px Arial";
-    ctx.fillText("Flappy Game", canvas.width/2, canvas.height/2 - 50);
-    ctx.font = "20px Arial";
-    ctx.fillText("Press Space or Tap to Start", canvas.width/2, canvas.height/2);
-  } else if (gameOver) {
-    ctx.fillText("Game Over", canvas.width/2, canvas.height/2 - 40);
-    ctx.fillText("Score: " + score, canvas.width/2, canvas.height/2);
-    ctx.fillText("High Score: " + highScore, canvas.width/2, canvas.height/2 + 30);
-    ctx.fillText("Press Space or Tap to Restart", canvas.width/2, canvas.height/2 + 80);
-  } else {
-    ctx.fillText(score, canvas.width/2, 50);
-  }
-}
+    function updateHighScore() {
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem("highScore", highScore);
+      }
+    }
 
-// ---------------- LOOP ----------------
-function loop() {
-  if (started && !gameOver) update();
-  draw();
-  requestAnimationFrame(loop);
-}
-loop();
-</script>
+    function playRandomDeathSound() {
+      if (currentDeathSound) currentDeathSound.pause();
+      const sound = deathSounds[Math.floor(Math.random() * deathSounds.length)].cloneNode();
+      sound.play();
+      currentDeathSound = sound;
+    }
+
+    // --- Drawing ---
+    function draw() {
+      ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+
+      // Mode selection only before first start
+      if (!gameStarted) {
+        ctx.fillStyle = "#fff";
+        ctx.font = "28px Arial";
+        ctx.fillText("Select Mode", 100, 150);
+
+        ctx.fillStyle = "#4CAF50";
+        ctx.fillRect(80, 220, 200, 50);
+        ctx.fillStyle = "#fff";
+        ctx.fillText("EASY", 160, 255);
+
+        ctx.fillStyle = "#F44336";
+        ctx.fillRect(80, 300, 200, 50);
+        ctx.fillStyle = "#fff";
+        ctx.fillText("NORMAL", 140, 335);
+
+        return; // don't draw game yet
+      }
+
+      // --- Game draw ---
+      pipes.forEach(p => {
+        ctx.drawImage(pipeTop, p.x, p.y - pipeTop.height);
+        ctx.drawImage(pipeBottom, p.x, p.y + gap);
+      });
+
+      ctx.drawImage(ground, groundX, canvas.height - ground.height);
+      ctx.drawImage(ground, groundX + canvas.width, canvas.height - ground.height);
+
+      ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+
+      ctx.fillStyle = "#fff";
+      ctx.font = "24px Arial";
+      ctx.fillText("Score: " + score, 10, 30);
+      ctx.fillText("Best: " + highScore, 10, 60);
+
+      // Game over overlay
+      if (gameOver) {
+        ctx.fillStyle = "rgba(0,0,0,0.5)";
+        ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
+
+        ctx.fillStyle = "#fff";
+        ctx.font = "32px Arial";
+        ctx.fillText("Game Over!", 95, canvas.height / 2 - 50);
+
+        ctx.font = "20px Arial";
+        ctx.fillText("Score: " + score, 140, canvas.height / 2 - 10);
+        ctx.fillText("Best: " + highScore, 140, canvas.height / 2 + 20);
+
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(120, canvas.height / 2 + 40, 120, 40);
+        ctx.fillStyle = "#000";
+        ctx.font = "18px Arial";
+        ctx.fillText("RESTART", 140, canvas.height / 2 + 70);
+      }
+    }
+
+    // --- Game loop ---
+    function loop() {
+      if (!gameOver) {
+        update();
+        frame++;
+      }
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    draw(); // initial render
+  </script>
 </body>
 </html>

@@ -33,35 +33,51 @@ let birdImg = new Image(); birdImg.src = "bird.png";
 let pipeTop = new Image(); pipeTop.src = "pipeTop.png";
 let pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
 
-let flapSound = new Audio("flap.wav");
-let pointSound = new Audio("point.wav");
-let deathSounds = [new Audio("die1.wav"), new Audio("die2.wav")];
+let flapSound = new Audio("flap.mp3");
+let pointSound = new Audio("point.mp3");
+let deathSounds = [new Audio("death1.mp3"), new Audio("death2.mp3")];
 
 // ---------------- PRELOAD ----------------
 let assetsLoaded = 0;
-let totalAssets = 5 + 2 + deathSounds.length; 
+let totalAssets = 5 + 2 + deathSounds.length;
 let showMenu = false;
-let loadingStart = Date.now();
+let failedAssets = [];
 
-function assetLoaded() {
+function markLoaded(name, success) {
   assetsLoaded++;
+  if (!success) failedAssets.push(name);
   if (assetsLoaded >= totalAssets) {
-    setTimeout(() => { showMenu = true; }, 300); // smooth transition
+    setTimeout(() => { showMenu = true; }, 300);
   }
 }
 
 // preload images
-[bg, ground, birdImg, pipeTop, pipeBottom].forEach(img => {
-  img.onload = assetLoaded;
+[
+  ["bg.png", bg],
+  ["ground.png", ground],
+  ["bird.png", birdImg],
+  ["pipeTop.png", pipeTop],
+  ["pipeBottom.png", pipeBottom]
+].forEach(([name, img]) => {
+  img.onload = () => markLoaded(name, true);
+  img.onerror = () => markLoaded(name, false);
 });
 
 // preload sounds
-[flapSound, pointSound, ...deathSounds].forEach(s => {
-  s.addEventListener("loadeddata", assetLoaded, { once: true });
+[
+  ["flap.mp3", flapSound],
+  ["point.mp3", pointSound],
+  ...deathSounds.map((s,i)=>[`death${i+1}.mp3`, s])
+].forEach(([name, snd]) => {
+  let loaded = false;
+  const done = (success) => { if (!loaded) { loaded = true; markLoaded(name, success); } };
+  snd.addEventListener("loadeddata", () => done(true));
+  snd.addEventListener("error", () => done(false));
+  setTimeout(() => done(false), 2000); // fallback
 });
 
-// fallback: unlock menu after 3s even if some sounds stall
-setTimeout(() => { if (!showMenu) showMenu = true; }, 3000);
+// final fallback: always start after 5s
+setTimeout(() => { if (!showMenu) showMenu = true; }, 5000);
 
 // ---------------- GAME STATE ----------------
 let gameOver = false;
@@ -170,6 +186,12 @@ function draw() {
     ctx.font = "20px Arial";
     ctx.textAlign = "center";
     ctx.fillText("Loading... " + Math.floor((assetsLoaded / totalAssets) * 100) + "%", canvas.width/2, canvas.height/2);
+
+    if (failedAssets.length > 0) {
+      ctx.font = "14px Arial";
+      ctx.fillStyle = "red";
+      ctx.fillText("Missing: " + failedAssets.join(", "), canvas.width/2, canvas.height/2 + 40);
+    }
     return;
   }
 

@@ -14,6 +14,7 @@
       display: flex;
       justify-content: center;
       align-items: center;
+      touch-action: none; /* Prevent default touch behaviors */
     }
 
     canvas {
@@ -34,7 +35,7 @@
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
 
-    // Scale canvas drawing to fit screen dynamically
+    // --- Canvas scaling ---
     function resizeCanvas() {
       const scaleX = window.innerWidth / canvas.width;
       const scaleY = window.innerHeight / canvas.height;
@@ -45,14 +46,14 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // 📌 Load images
+    // --- Load images ---
     const bg = new Image(); bg.src = "background.png";
     const ground = new Image(); ground.src = "ground.png";
     const birdImg = new Image(); birdImg.src = "bird.png";
     const pipeTop = new Image(); pipeTop.src = "pipeTop.png";
     const pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
 
-    // 📌 Game variables
+    // --- Game variables ---
     let bird = { x: 50, y: 150, width: 68, height: 48, gravity: 0.25, lift: -6, velocity: 0 };
     let pipes = [];
     let gap = 120;
@@ -63,35 +64,37 @@
     let gameOver = false;
     let gameStarted = false;
 
-    // 📌 Sounds
+    // --- Sounds ---
     const flapSound = new Audio("flap.mp3");
     const pointSound = new Audio("point.mp3");
     const deathSounds = [
-      new Audio("death1.mp3"),
-      new Audio("death2.mp3"),
-      new Audio("death3.mp3"),
-      new Audio("death4.mp3"),
-      new Audio("death5.mp3"),
-      new Audio("death6.mp3"),
-      new Audio("death7.mp3"),
-      new Audio("death8.mp3"),
-      new Audio("death9.mp3"),
+      new Audio("death1.mp3"), new Audio("death2.mp3"), new Audio("death3.mp3"),
+      new Audio("death4.mp3"), new Audio("death5.mp3"), new Audio("death6.mp3"),
+      new Audio("death7.mp3"), new Audio("death8.mp3"), new Audio("death9.mp3"),
       new Audio("death10.mp3")
     ];
     let currentDeathSound = null;
 
-    // 📌 Controls
+    // --- Controls ---
     document.addEventListener("keydown", handleInput);
     canvas.addEventListener("click", handleInput);
+    canvas.addEventListener("touchstart", handleInput, { passive: false });
 
     function handleInput(e) {
+      e.preventDefault(); // Prevent scrolling on mobile
+
       const rect = canvas.getBoundingClientRect();
       const scaleX = canvas.width / rect.width;
       const scaleY = canvas.height / rect.height;
 
-      // Map mouse click to internal canvas coordinates
-      const mx = (e.clientX - rect.left) * scaleX;
-      const my = (e.clientY - rect.top) * scaleY;
+      let mx, my;
+      if (e.touches) { // Touch events
+        mx = (e.touches[0].clientX - rect.left) * scaleX;
+        my = (e.touches[0].clientY - rect.top) * scaleY;
+      } else { // Mouse clicks
+        mx = (e.clientX - rect.left) * scaleX;
+        my = (e.clientY - rect.top) * scaleY;
+      }
 
       if (gameOver) {
         if (mx >= 120 && mx <= 240 && my >= canvas.height / 2 + 40 && my <= canvas.height / 2 + 80) {
@@ -115,7 +118,7 @@
       sound.play();
     }
 
-    // 📌 Reset game
+    // --- Reset game ---
     function resetGame() {
       bird.y = 150;
       bird.velocity = 0;
@@ -131,7 +134,7 @@
       }
     }
 
-    // 📌 Update logic
+    // --- Game logic ---
     function update() {
       bird.velocity += bird.gravity;
       bird.y += bird.velocity;
@@ -147,8 +150,7 @@
         pipes.push({ x: canvas.width, y: pipeY, scored: false });
       }
 
-      for (let i = 0; i < pipes.length; i++) {
-        let p = pipes[i];
+      pipes.forEach(p => {
         p.x -= 2;
 
         if (
@@ -164,10 +166,9 @@
         if (!p.scored && p.x + pipeTop.width < bird.x) {
           score++;
           p.scored = true;
-          const point = pointSound.cloneNode();
-          point.play();
+          pointSound.cloneNode().play();
         }
-      }
+      });
 
       pipes = pipes.filter(p => p.x + pipeTop.width > 0);
       groundX = (groundX - 2) % canvas.width;
@@ -187,7 +188,7 @@
       currentDeathSound = sound;
     }
 
-    // 📌 Draw everything
+    // --- Drawing ---
     function draw() {
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
@@ -197,7 +198,7 @@
         ctx.fillText("myran nashid", 110, 250);
 
         ctx.font = "20px Arial";
-        ctx.fillText("Click anywhere to Start", 60, 320);
+        ctx.fillText("Click/Tap to Start", 60, 320);
         return;
       }
 
@@ -236,6 +237,7 @@
       }
     }
 
+    // --- Game loop ---
     function loop() {
       if (!gameOver) {
         update();
@@ -245,7 +247,7 @@
       requestAnimationFrame(loop);
     }
 
-    draw(); // Start screen render
+    draw(); // Initial start screen
   </script>
 </body>
 </html>

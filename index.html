@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Flappy Clean</title>
+<title>Flappy Game</title>
 <style>
   body {
     margin: 0;
@@ -13,181 +13,203 @@
     align-items: center;
     height: 100vh;
     overflow: hidden;
-    font-family: Arial, sans-serif;
   }
   canvas {
-    display: block;
     background: #70c5ce;
-    border: 2px solid #333;
-    border-radius: 8px;
+    display: block;
   }
 </style>
 </head>
 <body>
 <canvas id="gameCanvas" width="400" height="600"></canvas>
 <script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
 // ---------------- ASSETS ----------------
-const assets = {
-  images: {
-    bg: "background.png",
-    ground: "ground.png",
-    bird: "bird.png",
-    pipeTop: "pipeTop.png",
-    pipeBottom: "pipeBottom.png"
-  },
-  sounds: {
-    flap: "flap.mp3",
-    point: "point.mp3",
-    deaths: ["death1.mp3", "death2.mp3"]
-  }
-};
+let bg = new Image(); bg.src = "bg.png";
+let ground = new Image(); ground.src = "ground.png";
+let birdImg = new Image(); birdImg.src = "bird.png";
+let pipeTop = new Image(); pipeTop.src = "pipeTop.png";
+let pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
 
-let loadedAssets = {};
-let assetsLoaded = 0;
-let totalAssets = Object.keys(assets.images).length +
-                  Object.keys(assets.sounds).length - 1 + // deaths counted separately
-                  assets.sounds.deaths.length;
-let showMenu = false;
-let failedAssets = [];
+let flapSound = new Audio("flap.wav");
+let pointSound = new Audio("point.wav");
+let deathSounds = [new Audio("die1.wav"), new Audio("die2.wav")];
 
 // ---------------- PRELOAD ----------------
-function markLoaded(name, success) {
+let assetsLoaded = 0;
+let totalAssets = 5 + 2 + deathSounds.length; 
+let showMenu = false;
+let loadingStart = Date.now();
+
+function assetLoaded() {
   assetsLoaded++;
-  if (!success) failedAssets.push(name);
-  if (assetsLoaded >= totalAssets) setTimeout(() => { showMenu = true; }, 200);
-}
-
-// Load images
-for (const [name, src] of Object.entries(assets.images)) {
-  const img = new Image();
-  img.src = src;
-  img.onload = () => markLoaded(name, true);
-  img.onerror = () => markLoaded(name, false);
-  loadedAssets[name] = img;
-}
-
-// Load sounds
-for (const [name, src] of Object.entries(assets.sounds)) {
-  if (name === "deaths") {
-    loadedAssets.deaths = [];
-    for (let i=0;i<src.length;i++){
-      const s = new Audio(src[i]);
-      s.addEventListener("loadeddata", () => markLoaded(`death${i+1}`, true), {once:true});
-      s.addEventListener("error", () => markLoaded(`death${i+1}`, false), {once:true});
-      setTimeout(()=>markLoaded(`death${i+1}`, false),2000);
-      loadedAssets.deaths.push(s);
-    }
-  } else {
-    const s = new Audio(src);
-    s.addEventListener("loadeddata", () => markLoaded(name, true), {once:true});
-    s.addEventListener("error", () => markLoaded(name, false), {once:true});
-    setTimeout(()=>markLoaded(name,false),2000);
-    loadedAssets[name] = s;
+  if (assetsLoaded >= totalAssets) {
+    setTimeout(() => { showMenu = true; }, 300); // smooth transition
   }
 }
 
-// Force show menu after 5s in case something stalls
-setTimeout(()=>{ if(!showMenu) showMenu=true; },5000);
+// preload images
+[bg, ground, birdImg, pipeTop, pipeBottom].forEach(img => {
+  img.onload = assetLoaded;
+});
+
+// preload sounds
+[flapSound, pointSound, ...deathSounds].forEach(s => {
+  s.addEventListener("loadeddata", assetLoaded, { once: true });
+});
+
+// fallback: unlock menu after 3s even if some sounds stall
+setTimeout(() => { if (!showMenu) showMenu = true; }, 3000);
 
 // ---------------- GAME STATE ----------------
 let gameOver = false;
 let started = false;
 let frame = 0;
 let pipes = [];
-let gap = 140;
+let gap = 120;
 let groundX = 0;
 let score = 0;
-let highScore = localStorage.getItem("highScore")||0;
-let bird = { x:80, y:200, width:48, height:34, velocity:0, gravity:0.25, lift:-6 };
+let highScore = 0;
+
+let bird = { 
+  x: 50, y: 150, width: 68, height: 48, 
+  gravity: 0.25, lift: -6, velocity: 0 
+};
 
 function resetGame() {
-  bird.y=200; bird.velocity=0;
-  pipes=[]; frame=0; score=0; gameOver=false; started=true;
+  bird.y = 150;
+  bird.velocity = 0;
+  pipes = [];
+  score = 0;
+  frame = 0;
+  gameOver = false;
+  started = true;
 }
 
 // ---------------- INPUT ----------------
 document.addEventListener("keydown", e => {
-  if (e.code === "Space") flap();
+  if (e.code === "Space") {
+    if (!started && showMenu) resetGame();
+    else if (!gameOver) {
+      bird.velocity = bird.lift;
+      flapSound.play();
+    } else {
+      resetGame();
+    }
+  }
 });
-canvas.addEventListener("mousedown", flap);
 
-function flap() {
+canvas.addEventListener("mousedown", () => {
   if (!started && showMenu) resetGame();
-  else if (!gameOver) { bird.velocity = bird.lift; loadedAssets.flap.play(); }
-  else resetGame();
-}
+  else if (!gameOver) {
+    bird.velocity = bird.lift;
+    flapSound.play();
+  } else {
+    resetGame();
+  }
+});
 
 // ---------------- UPDATE ----------------
 function update() {
   bird.velocity += bird.gravity;
   bird.y += bird.velocity;
 
-  // Spawn pipes
-  if(frame%90===0){
-    let minY=80, maxY=canvas.height-gap-160;
-    let pipeY=Math.floor(Math.random()*(maxY-minY))+minY;
-    pipes.push({x:canvas.width, y:pipeY, scored:false});
+  if (frame % 90 === 0) {
+    let minY = 80;
+    let maxY = canvas.height - gap - 160;
+    let pipeY = Math.floor(Math.random() * (maxY - minY)) + minY;
+    pipes.push({ x: canvas.width, y: pipeY, scored: false });
   }
 
-  // Move pipes & check collisions
-  for(let p of pipes){ p.x-=2;
-    if(!p.scored && p.x+loadedAssets.pipeTop.width<bird.x){ score++; p.scored=true; loadedAssets.point.play();}
-    if(bird.x< p.x+loadedAssets.pipeTop.width && bird.x+bird.width>p.x &&
-       (bird.y<p.y || bird.y+bird.height>p.y+gap)){
-      playDeath(); gameOver=true; highScore=Math.max(highScore,score);
+  pipes.forEach(p => p.x -= 2);
+  pipes = pipes.filter(p => p.x + pipeTop.width > 0);
+
+  pipes.forEach(p => {
+    if (!p.scored && p.x + pipeTop.width < bird.x) {
+      score++;
+      p.scored = true;
+      pointSound.play();
     }
-  }
-  pipes=pipes.filter(p=>p.x+loadedAssets.pipeTop.width>0);
 
-  // Ground collision
-  if(bird.y+bird.height>canvas.height-loadedAssets.ground.height){ playDeath(); gameOver=true; highScore=Math.max(highScore,score);}
-  groundX=(groundX-2)%canvas.width;
+    if (
+      bird.x < p.x + pipeTop.width &&
+      bird.x + bird.width > p.x &&
+      (bird.y < p.y || bird.y + bird.height > p.y + gap)
+    ) {
+      playRandomDeathSound();
+      gameOver = true;
+      highScore = Math.max(highScore, score);
+    }
+  });
+
+  if (bird.y + bird.height > canvas.height - ground.height) {
+    playRandomDeathSound();
+    gameOver = true;
+    highScore = Math.max(highScore, score);
+  }
+
+  groundX = (groundX - 2) % canvas.width;
   frame++;
 }
 
-function playDeath(){
-  let s = loadedAssets.deaths[Math.floor(Math.random()*loadedAssets.deaths.length)];
-  s.currentTime=0; s.play();
+function playRandomDeathSound() {
+  let s = deathSounds[Math.floor(Math.random() * deathSounds.length)];
+  s.currentTime = 0;
+  s.play();
 }
 
 // ---------------- DRAW ----------------
 function draw() {
-  if(!showMenu){
-    ctx.fillStyle="#000"; ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle="#fff"; ctx.textAlign="center"; ctx.font="20px Arial";
-    ctx.fillText(`Loading... ${Math.floor((assetsLoaded/totalAssets)*100)}%`,canvas.width/2,canvas.height/2);
-    if(failedAssets.length>0){ ctx.font="14px Arial"; ctx.fillStyle="red"; ctx.fillText("Missing: "+failedAssets.join(", "),canvas.width/2,canvas.height/2+40);}
+  if (!showMenu) {
+    // loading screen
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#fff";
+    ctx.font = "20px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("Loading... " + Math.floor((assetsLoaded / totalAssets) * 100) + "%", canvas.width/2, canvas.height/2);
     return;
   }
 
-  ctx.drawImage(loadedAssets.bg,0,0,canvas.width,canvas.height);
-  for(let p of pipes){ ctx.drawImage(loadedAssets.pipeTop,p.x,p.y-loadedAssets.pipeTop.height); ctx.drawImage(loadedAssets.pipeBottom,p.x,p.y+gap);}
-  ctx.drawImage(loadedAssets.bird,bird.x,bird.y,bird.width,bird.height);
-  ctx.drawImage(loadedAssets.ground,groundX,canvas.height-loadedAssets.ground.height);
-  ctx.drawImage(loadedAssets.ground,groundX+canvas.width,canvas.height-loadedAssets.ground.height);
+  ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle="#fff"; ctx.textAlign="center";
+  pipes.forEach(p => {
+    ctx.drawImage(pipeTop, p.x, p.y - pipeTop.height);
+    ctx.drawImage(pipeBottom, p.x, p.y + gap);
+  });
 
-  if(!started){
-    ctx.font="30px Arial"; ctx.fillText("Flappy Clean",canvas.width/2,canvas.height/2-50);
-    ctx.font="20px Arial"; ctx.fillText("Tap or Space to Start",canvas.width/2,canvas.height/2);
-  } else if(gameOver){
-    ctx.font="30px Arial"; ctx.fillText("Game Over",canvas.width/2,canvas.height/2-50);
-    ctx.font="20px Arial";
-    ctx.fillText(`Score: ${score}`,canvas.width/2,canvas.height/2);
-    ctx.fillText(`High: ${highScore}`,canvas.width/2,canvas.height/2+30);
-    ctx.fillText("Tap or Space to Restart",canvas.width/2,canvas.height/2+70);
-    localStorage.setItem("highScore",highScore);
+  ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+
+  ctx.drawImage(ground, groundX, canvas.height - ground.height);
+  ctx.drawImage(ground, groundX + canvas.width, canvas.height - ground.height);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "20px Arial";
+  ctx.textAlign = "center";
+
+  if (!started) {
+    ctx.font = "30px Arial";
+    ctx.fillText("Flappy Game", canvas.width/2, canvas.height/2 - 50);
+    ctx.font = "20px Arial";
+    ctx.fillText("Press Space or Tap to Start", canvas.width/2, canvas.height/2);
+  } else if (gameOver) {
+    ctx.fillText("Game Over", canvas.width/2, canvas.height/2 - 40);
+    ctx.fillText("Score: " + score, canvas.width/2, canvas.height/2);
+    ctx.fillText("High Score: " + highScore, canvas.width/2, canvas.height/2 + 30);
+    ctx.fillText("Press Space or Tap to Restart", canvas.width/2, canvas.height/2 + 80);
   } else {
-    ctx.font="24px Arial"; ctx.fillText(score,canvas.width/2,50);
+    ctx.fillText(score, canvas.width/2, 50);
   }
 }
 
 // ---------------- LOOP ----------------
-function loop(){ if(started&&!gameOver) update(); draw(); requestAnimationFrame(loop);}
+function loop() {
+  if (started && !gameOver) update();
+  draw();
+  requestAnimationFrame(loop);
+}
 loop();
 </script>
 </body>

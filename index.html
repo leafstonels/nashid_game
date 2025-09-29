@@ -1,293 +1,287 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Razio</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      background: #70c5ce;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      touch-action: none;
-      font-family: Arial, sans-serif;
-    }
-
-    #loginScreen {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      background: #70c5ce;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-    }
-
-    #loginScreen input, #loginScreen button {
-      padding: 10px;
-      font-size: 16px;
-      border-radius: 6px;
-      border: none;
-    }
-
-    #leaderboard {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: rgba(0,0,0,0.5);
-      color: #fff;
-      padding: 8px;
-      border-radius: 6px;
-      font-size: 14px;
-    }
-
-    canvas {
-      border: 2px solid #333;
-      border-radius: 8px;
-      width: 100%;
-      height: 100%;
-      max-width: 100vw;
-      max-height: 100vh;
-      display: block;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>nashid myran</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #70c5ce;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  touch-action: none;
+  font-family: Arial, sans-serif;
+}
+#loginScreen {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: #70c5ce;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+#loginScreen input, #loginScreen button {
+  padding: 10px;
+  font-size: 16px;
+  border-radius: 6px;
+  border: none;
+}
+#leaderboard {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.5);
+  color: #fff;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+canvas {
+  border: 2px solid #333;
+  border-radius: 8px;
+  width: 100%;
+  height: 100%;
+  max-width: 100vw;
+  max-height: 100vh;
+  display: block;
+}
+</style>
 </head>
 <body>
-  <!-- Login Screen -->
-  <div id="loginScreen">
-    <h2>Login / Register</h2>
-    <input type="text" id="username" placeholder="Username">
-    <input type="password" id="password" placeholder="Password">
-    <button onclick="login()">Login</button>
-    <button onclick="register()">Register</button>
-    <p id="loginMessage"></p>
-  </div>
 
-  <!-- Leaderboard -->
-  <div id="leaderboard" style="display:none;">
-    <b>Leaderboard</b>
-    <ul id="leaderList"></ul>
-  </div>
+<!-- Login Screen -->
+<div id="loginScreen">
+  <h2>Login / Register</h2>
+  <input type="text" id="username" placeholder="Username">
+  <input type="password" id="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+  <button onclick="register()">Register</button>
+  <p id="loginMessage"></p>
+</div>
 
-  <canvas id="gameCanvas" width="360" height="640"></canvas>
+<!-- Leaderboard -->
+<div id="leaderboard" style="display:none;">
+  <b>Leaderboard</b>
+  <ul id="leaderList"></ul>
+</div>
 
-  <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbw7c2ywo8KI_LCkZl14gQtovcJWVMtmBhOy6q2f9M7X06ZUwJnD-gWjLfozRSm0mlHmuw/exec";
+<canvas id="gameCanvas" width="360" height="640"></canvas>
 
-    let currentUser = null;
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbzk7ucfSLgy3W2tyYmDjAtWZNX1Ii9zmyXoJUDH2CcahfOr0lu9lHtv0GnC8o2le7u-Xw/exec"; // replace with your Web App URL
+let currentUser = null;
+let score = 0;
+let gameOver = false;
+let gameStarted = false;
 
-    // Login
-    async function login() {
-      const username = document.getElementById("username").value.trim();
-      const password = document.getElementById("password").value.trim();
+// --- Login ---
+async function login() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value.trim();
 
-      const res = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "login", username, password })
-      });
-      const data = await res.json();
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ action: "login", username, password })
+  });
+  const data = await res.json();
 
-      if (data.success) {
-        currentUser = username;
-        document.getElementById("loginScreen").style.display = "none";
-        document.getElementById("leaderboard").style.display = "block";
-        loadLeaderboard();
-        draw(); // start game
-      } else {
-        document.getElementById("loginMessage").innerText = data.message;
-      }
+  if (data.success) {
+    currentUser = username;
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("leaderboard").style.display = "block";
+    loadLeaderboard();
+  } else {
+    document.getElementById("loginMessage").innerText = data.message;
+  }
+}
+
+// --- Register ---
+async function register() {
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value.trim();
+
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ action: "register", username, password })
+  });
+  const data = await res.json();
+  document.getElementById("loginMessage").innerText = data.message;
+}
+
+// --- Load leaderboard ---
+async function loadLeaderboard() {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ action: "leaderboard" })
+  });
+  const data = await res.json();
+  const list = document.getElementById("leaderList");
+  list.innerHTML = "";
+  data.leaderboard.forEach(entry => {
+    const li = document.createElement("li");
+    li.textContent = `${entry.username}: ${entry.score}`;
+    list.appendChild(li);
+  });
+}
+
+// --- Update score ---
+async function updateScore(score) {
+  if (!currentUser) return;
+  await fetch(API_URL, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ action: "updateScore", username: currentUser, score })
+  });
+  loadLeaderboard();
+}
+
+// --- Game Setup ---
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const bg = new Image(); bg.src = "background.png";
+const ground = new Image(); ground.src = "ground.png";
+const birdImg = new Image(); birdImg.src = "bird.png";
+const pipeTop = new Image(); pipeTop.src = "pipeTop.png";
+const pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
+
+let bird = { x: 50, y: 150, width: 68, height: 48, gravity: 0.25, lift: -6, velocity: 0 };
+let pipes = [];
+let gap = 120;
+let frame = 0;
+let groundX = 0;
+let audioUnlocked = false;
+
+const flapSound = new Audio("flap.mp3");
+const pointSound = new Audio("point.mp3");
+const deathSounds = [new Audio("death1.mp3"), new Audio("death2.mp3"), new Audio("death3.mp3")];
+let currentDeathSound = null;
+
+// --- Input ---
+document.addEventListener("keydown", handleInput);
+canvas.addEventListener("click", handleInput);
+canvas.addEventListener("touchstart", handleInput, { passive: false });
+
+function handleInput() {
+  if (!gameStarted) {
+    resetGame();
+    gameStarted = true;
+    loop();
+  }
+  if (gameOver) {
+    resetGame();
+    return;
+  }
+  bird.velocity = bird.lift;
+  flapSound.cloneNode().play();
+}
+
+function resetGame() {
+  bird.y = 150;
+  bird.velocity = 0;
+  pipes = [];
+  score = 0;
+  frame = 0;
+  gameOver = false;
+}
+
+// --- Update ---
+function update() {
+  bird.velocity += bird.gravity;
+  bird.y += bird.velocity;
+
+  // Ground collision
+  if (bird.y + bird.height >= canvas.height - ground.height) {
+    if (!gameOver) {
+      deathSounds[Math.floor(Math.random()*deathSounds.length)].cloneNode().play();
+      gameOver = true;
+      updateScore(score);
     }
+  }
 
-    // Register
-    async function register() {
-      const username = document.getElementById("username").value.trim();
-      const password = document.getElementById("password").value.trim();
+  // Pipe generation
+  if (frame % 90 === 0) {
+    let pipeY = (canvas.height / 2) + Math.floor(Math.random() * 200) - 100;
+    pipes.push({ x: canvas.width, y: pipeY, scored: false });
+  }
 
-      const res = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "register", username, password })
-      });
-      const data = await res.json();
-      document.getElementById("loginMessage").innerText = data.message;
-    }
+  pipes.forEach(p => {
+    p.x -= 2;
 
-    // Update score
-    async function updateScore(score) {
-      if (!currentUser) return;
-      await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "updateScore", username: currentUser, score })
-      });
-      loadLeaderboard();
-    }
-
-    // Load leaderboard
-    async function loadLeaderboard() {
-      const res = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({ action: "leaderboard" })
-      });
-      const data = await res.json();
-      const list = document.getElementById("leaderList");
-      list.innerHTML = "";
-      data.forEach(entry => {
-        const li = document.createElement("li");
-        li.textContent = `${entry.username}: ${entry.score}`;
-        list.appendChild(li);
-      });
-    }
-
-    // --- Your Game Code ---
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-
-    const bg = new Image(); bg.src = "background.png";
-    const ground = new Image(); ground.src = "ground.png";
-    const birdImg = new Image(); birdImg.src = "bird.png";
-    const pipeTop = new Image(); pipeTop.src = "pipeTop.png";
-    const pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
-
-    let bird = { x: 50, y: 150, width: 68, height: 48, gravity: 0.25, lift: -6, velocity: 0 };
-    let pipes = [];
-    let gap = 120;
-    let frame = 0;
-    let score = 0;
-    let highScore = 0;
-    let groundX = 0;
-    let gameOver = false;
-    let gameStarted = false;
-    let audioUnlocked = false;
-
-    const flapSound = new Audio("flap.mp3");
-    const pointSound = new Audio("point.mp3");
-    const deathSounds = [
-      new Audio("death1.mp3"), new Audio("death2.mp3"), new Audio("death3.mp3")
-    ];
-    let currentDeathSound = null;
-
-    function playFlapSound() {
-      const sound = flapSound.cloneNode();
-      sound.play();
-    }
-
-    function playRandomDeathSound() {
-      if (currentDeathSound) currentDeathSound.pause();
-      const sound = deathSounds[Math.floor(Math.random() * deathSounds.length)].cloneNode();
-      sound.play();
-      currentDeathSound = sound;
-    }
-
-    document.addEventListener("keydown", handleInput);
-    canvas.addEventListener("click", handleInput);
-    canvas.addEventListener("touchstart", handleInput, { passive: false });
-
-    function handleInput() {
-      if (!gameStarted) {
-        resetGame();
-        loop();
-        gameStarted = true;
-      }
-      if (gameOver) {
-        resetGame();
-        return;
-      }
-      bird.velocity = bird.lift;
-      playFlapSound();
-    }
-
-    function resetGame() {
-      bird.y = 150;
-      bird.velocity = 0;
-      pipes = [];
-      score = 0;
-      frame = 0;
-      gameOver = false;
-    }
-
-    function update() {
-      bird.velocity += bird.gravity;
-      bird.y += bird.velocity;
-
-      if (bird.y + bird.height >= canvas.height - ground.height) {
-        playRandomDeathSound();
+    // Collision
+    if (
+      bird.x < p.x + pipeTop.width &&
+      bird.x + bird.width > p.x &&
+      (bird.y < p.y || bird.y + bird.height > p.y + gap)
+    ) {
+      if (!gameOver) {
+        deathSounds[Math.floor(Math.random()*deathSounds.length)].cloneNode().play();
         gameOver = true;
         updateScore(score);
       }
-
-      if (frame % 90 === 0) {
-        let pipeY = (canvas.height / 2) + Math.floor(Math.random() * 200) - 100;
-        pipes.push({ x: canvas.width, y: pipeY, scored: false });
-      }
-
-      pipes.forEach(p => {
-        p.x -= 2;
-
-        if (
-          bird.x < p.x + pipeTop.width &&
-          bird.x + bird.width > p.x &&
-          (bird.y < p.y || bird.y + bird.height > p.y + gap)
-        ) {
-          playRandomDeathSound();
-          gameOver = true;
-          updateScore(score);
-        }
-
-        if (!p.scored && p.x + pipeTop.width < bird.x) {
-          score++;
-          p.scored = true;
-          pointSound.cloneNode().play();
-        }
-      });
-
-      pipes = pipes.filter(p => p.x + pipeTop.width > 0);
-      groundX = (groundX - 2) % canvas.width;
     }
 
-    function draw() {
-      ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
-
-      pipes.forEach(p => {
-        ctx.drawImage(pipeTop, p.x, p.y - pipeTop.height);
-        ctx.drawImage(pipeBottom, p.x, p.y + gap);
-      });
-
-      ctx.drawImage(ground, groundX, canvas.height - ground.height);
-      ctx.drawImage(ground, groundX + canvas.width, canvas.height - ground.height);
-
-      ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
-
-      ctx.fillStyle = "#fff";
-      ctx.font = "24px Arial";
-      ctx.fillText("Score: " + score, 10, 30);
-
-      if (gameOver) {
-        ctx.fillStyle = "rgba(0,0,0,0.5)";
-        ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
-
-        ctx.fillStyle = "#fff";
-        ctx.font = "32px Arial";
-        ctx.fillText("Game Over!", 95, canvas.height / 2 - 50);
-
-        ctx.font = "20px Arial";
-        ctx.fillText("Score: " + score, 140, canvas.height / 2);
-      }
+    // Score
+    if (!p.scored && p.x + pipeTop.width < bird.x) {
+      score++;
+      p.scored = true;
+      pointSound.cloneNode().play();
     }
+  });
 
-    function loop() {
-      if (!gameOver) {
-        update();
-        frame++;
-      }
-      draw();
-      requestAnimationFrame(loop);
-    }
-  </script>
+  pipes = pipes.filter(p => p.x + pipeTop.width > 0);
+  groundX = (groundX - 2) % canvas.width;
+  frame++;
+}
+
+// --- Draw ---
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+
+  pipes.forEach(p => {
+    ctx.drawImage(pipeTop, p.x, p.y - pipeTop.height);
+    ctx.drawImage(pipeBottom, p.x, p.y + gap);
+  });
+
+  ctx.drawImage(ground, groundX, canvas.height - ground.height);
+  ctx.drawImage(ground, groundX + canvas.width, canvas.height - ground.height);
+
+  ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+
+  ctx.fillStyle = "#fff";
+  ctx.font = "24px Arial";
+  ctx.fillText("Score: " + score, 10, 30);
+
+  if (gameOver) {
+    ctx.fillStyle = "rgba(0,0,0,0.5)";
+    ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
+
+    ctx.fillStyle = "#fff";
+    ctx.font = "32px Arial";
+    ctx.fillText("Game Over!", 95, canvas.height / 2 - 50);
+
+    ctx.font = "20px Arial";
+    ctx.fillText("Score: " + score, 140, canvas.height / 2);
+  }
+}
+
+// --- Game Loop ---
+function loop() {
+  update();
+  draw();
+  if (!gameOver) requestAnimationFrame(loop);
+}
+</script>
 </body>
 </html>
-

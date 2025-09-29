@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>nashid myran</title>
+<title>Razio</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <style>
 html, body {
@@ -72,10 +72,10 @@ canvas {
   <ul id="leaderList"></ul>
 </div>
 
-<canvas id="gameCanvas" width="360" height="640"></canvas>
+<canvas id="gameCanvas" width="360" height="640" style="display:none;"></canvas>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbzk7ucfSLgy3W2tyYmDjAtWZNX1Ii9zmyXoJUDH2CcahfOr0lu9lHtv0GnC8o2le7u-Xw/exec"; // replace with your Web App URL
+const API_URL = "https://script.google.com/macros/s/AKfycbzk7ucfSLgy3W2tyYmDjAtWZNX1Ii9zmyXoJUDH2CcahfOr0lu9lHtv0GnC8o2le7u-Xw/exec"; // Replace with your Web App URL
 let currentUser = null;
 let score = 0;
 let gameOver = false;
@@ -86,20 +86,30 @@ async function login() {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value.trim();
 
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ action: "login", username, password })
-  });
-  const data = await res.json();
+  if (!username || !password) {
+    document.getElementById("loginMessage").innerText = "Enter username and password";
+    return;
+  }
 
-  if (data.success) {
-    currentUser = username;
-    document.getElementById("loginScreen").style.display = "none";
-    document.getElementById("leaderboard").style.display = "block";
-    loadLeaderboard();
-  } else {
-    document.getElementById("loginMessage").innerText = data.message;
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "login", username, password })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      currentUser = username;
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("leaderboard").style.display = "block";
+      document.getElementById("gameCanvas").style.display = "block";
+      loadLeaderboard();
+    } else {
+      document.getElementById("loginMessage").innerText = data.message;
+    }
+  } catch (err) {
+    document.getElementById("loginMessage").innerText = "Error: " + err.message;
   }
 }
 
@@ -108,41 +118,58 @@ async function register() {
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value.trim();
 
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ action: "register", username, password })
-  });
-  const data = await res.json();
-  document.getElementById("loginMessage").innerText = data.message;
+  if (!username || !password) {
+    document.getElementById("loginMessage").innerText = "Enter username and password";
+    return;
+  }
+
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "register", username, password })
+    });
+    const data = await res.json();
+    document.getElementById("loginMessage").innerText = data.message;
+  } catch (err) {
+    document.getElementById("loginMessage").innerText = "Error: " + err.message;
+  }
 }
 
 // --- Load leaderboard ---
 async function loadLeaderboard() {
-  const res = await fetch(API_URL, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ action: "leaderboard" })
-  });
-  const data = await res.json();
-  const list = document.getElementById("leaderList");
-  list.innerHTML = "";
-  data.leaderboard.forEach(entry => {
-    const li = document.createElement("li");
-    li.textContent = `${entry.username}: ${entry.score}`;
-    list.appendChild(li);
-  });
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "leaderboard" })
+    });
+    const data = await res.json();
+    const list = document.getElementById("leaderList");
+    list.innerHTML = "";
+    data.leaderboard.forEach(entry => {
+      const li = document.createElement("li");
+      li.textContent = `${entry.username}: ${entry.score}`;
+      list.appendChild(li);
+    });
+  } catch (err) {
+    console.log("Error loading leaderboard:", err);
+  }
 }
 
 // --- Update score ---
 async function updateScore(score) {
   if (!currentUser) return;
-  await fetch(API_URL, {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ action: "updateScore", username: currentUser, score })
-  });
-  loadLeaderboard();
+  try {
+    await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "updateScore", username: currentUser, score })
+    });
+    loadLeaderboard();
+  } catch (err) {
+    console.log("Error updating score:", err);
+  }
 }
 
 // --- Game Setup ---
@@ -160,7 +187,6 @@ let pipes = [];
 let gap = 120;
 let frame = 0;
 let groundX = 0;
-let audioUnlocked = false;
 
 const flapSound = new Audio("flap.mp3");
 const pointSound = new Audio("point.mp3");
@@ -173,15 +199,19 @@ canvas.addEventListener("click", handleInput);
 canvas.addEventListener("touchstart", handleInput, { passive: false });
 
 function handleInput() {
+  if (!currentUser) return; // only allow input after login
+
   if (!gameStarted) {
     resetGame();
     gameStarted = true;
-    loop();
+    loop(); // start the game loop only once
   }
+
   if (gameOver) {
     resetGame();
     return;
   }
+
   bird.velocity = bird.lift;
   flapSound.cloneNode().play();
 }
@@ -201,12 +231,10 @@ function update() {
   bird.y += bird.velocity;
 
   // Ground collision
-  if (bird.y + bird.height >= canvas.height - ground.height) {
-    if (!gameOver) {
-      deathSounds[Math.floor(Math.random()*deathSounds.length)].cloneNode().play();
-      gameOver = true;
-      updateScore(score);
-    }
+  if (bird.y + bird.height >= canvas.height - ground.height && !gameOver) {
+    deathSounds[Math.floor(Math.random()*deathSounds.length)].cloneNode().play();
+    gameOver = true;
+    updateScore(score);
   }
 
   // Pipe generation

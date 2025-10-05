@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>nashid myran</title>
+  <title>Razio Bird</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     html, body {
@@ -14,8 +14,70 @@
       justify-content: center;
       align-items: center;
       touch-action: none;
+      font-family: Arial, sans-serif;
     }
-
+    #selectPlayerScreen {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: #70c5ce;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 20px;
+    }
+    #selectPlayerScreen button {
+      padding: 12px 20px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    #menuButton {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      font-size: 28px;
+      color: white;
+      background: rgba(0,0,0,0.5);
+      padding: 5px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: none;
+      z-index: 10;
+    }
+    #menuPanel {
+      position: absolute;
+      top: 60px;
+      right: 15px;
+      background: rgba(0,0,0,0.8);
+      border-radius: 8px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      padding: 10px;
+      z-index: 10;
+    }
+    #menuPanel button {
+      background: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    #leaderboard {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.5);
+      color: #fff;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 14px;
+      z-index: 5;
+    }
     canvas {
       border: 2px solid #333;
       border-radius: 8px;
@@ -28,13 +90,99 @@
   </style>
 </head>
 <body>
+  <div id="selectPlayerScreen">
+    <h2>Select Player</h2>
+    <button onclick="choosePlayer('Player1')">Player1</button>
+    <button onclick="choosePlayer('Player2')">Player2</button>
+  </div>
+
+  <div id="menuButton">☰</div>
+  <div id="menuPanel">
+    <button onclick="resumeGame()">Resume</button>
+    <button onclick="restartGame()">Restart</button>
+    <button onclick="goToMainMenu()">Main Menu</button>
+  </div>
+
+  <div id="leaderboard" style="display:none;">
+    <b>Leaderboard</b>
+    <ul id="leaderList"></ul>
+  </div>
+
   <canvas id="gameCanvas" width="360" height="640"></canvas>
 
   <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbwC3IslB0uzIglZNjOmxdSOAznrVspfiESuXlA7dsaka2f8aaMnlfx8hFRNNiIElpdQvg/exec";
+
+    let currentPlayer = null;
+
+    function choosePlayer(name) {
+      currentPlayer = name;
+      document.getElementById("selectPlayerScreen").style.display = "none";
+      document.getElementById("leaderboard").style.display = "block";
+      showMenuButton();
+      loadLeaderboard();
+      loop();
+    }
+
+    // Menu & Pause system
+    let paused = false;
+    function showMenuButton() {
+      document.getElementById("menuButton").style.display = "block";
+    }
+    document.getElementById("menuButton").addEventListener("click", () => {
+      const panel = document.getElementById("menuPanel");
+      panel.style.display = panel.style.display === "flex" ? "none" : "flex";
+    });
+    function resumeGame() {
+      paused = false;
+      document.getElementById("menuPanel").style.display = "none";
+    }
+    function restartGame() {
+      resetGame();
+      paused = false;
+      document.getElementById("menuPanel").style.display = "none";
+    }
+    function goToMainMenu() {
+      paused = false;
+      gameStarted = false;
+      pipes = [];
+      document.getElementById("menuPanel").style.display = "none";
+      document.getElementById("selectPlayerScreen").style.display = "flex";
+    }
+
+    // Leaderboard functions
+    let leaderboard = [];
+    async function loadLeaderboard() {
+      try {
+        const res = await fetch(API_URL + "?action=getLeaderboard");
+        const data = await res.json();
+        leaderboard = data;
+        const listEl = document.getElementById("leaderList");
+        listEl.innerHTML = "";
+        data.forEach((e, i) => {
+          const li = document.createElement("li");
+          li.textContent = `${i+1}. ${e[0]} : ${e[1]}`;
+          listEl.appendChild(li);
+        });
+      } catch (err) {
+        console.error("Leaderboard load error:", err);
+      }
+    }
+    async function submitScoreToSheet(name, score) {
+      try {
+        await fetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "submitScore", name, score })
+        });
+      } catch (err) {
+        console.error("Submit score error:", err);
+      }
+    }
+
+    // Game code below ...
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
-
-    // --- Canvas scaling ---
     function resizeCanvas() {
       const scaleX = window.innerWidth / canvas.width;
       const scaleY = window.innerHeight / canvas.height;
@@ -45,114 +193,59 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // --- Load images ---
     const bg = new Image(); bg.src = "background.png";
     const ground = new Image(); ground.src = "ground.png";
     const birdImg = new Image(); birdImg.src = "bird.png";
     const pipeTop = new Image(); pipeTop.src = "pipeTop.png";
     const pipeBottom = new Image(); pipeBottom.src = "pipeBottom.png";
 
-    // --- Game variables ---
-    let bird = { x: 50, y: 150, width: 68, height: 48, gravity: 0.25, lift: -6, velocity: 0 };
+    let bird = { x:50, y:150, width:68, height:48, gravity:0.25, lift:-6, velocity:0 };
     let pipes = [];
     let gap = 120;
     let frame = 0;
     let score = 0;
-    let highScore = localStorage.getItem("highScore") || 0;
     let groundX = 0;
     let gameOver = false;
     let gameStarted = false;
-    let audioUnlocked = false;
 
-    // --- Difficulty variables ---
-    let mode = null; // "easy" or "normal"
-    let pipeVariation = 0;
-
-    // --- Sounds ---
     const flapSound = new Audio("flap.mp3");
     const pointSound = new Audio("point.mp3");
     const deathSounds = [
-      new Audio("death1.mp3"), new Audio("death2.mp3"), new Audio("death3.mp3"),
-      new Audio("death4.mp3"), new Audio("death5.mp3"), new Audio("death6.mp3"),
-      new Audio("death7.mp3"), new Audio("death8.mp3"), new Audio("death9.mp3"),
-      new Audio("death10.mp3")
+      new Audio("death1.mp3"), new Audio("death2.mp3"), new Audio("death3.mp3")
     ];
     let currentDeathSound = null;
 
-    function unlockAudio() {
-      [flapSound, pointSound, ...deathSounds].forEach(sound => {
-        const s = sound.cloneNode();
-        s.play().catch(() => {});
-        s.pause();
-        s.currentTime = 0;
-      });
+    function playFlap() {
+      const s = flapSound.cloneNode();
+      s.play();
+    }
+    function playRandomDeath() {
+      if (currentDeathSound) currentDeathSound.pause();
+      const s = deathSounds[Math.floor(Math.random()*deathSounds.length)].cloneNode();
+      s.play();
+      currentDeathSound = s;
     }
 
-    // --- Controls ---
     document.addEventListener("keydown", handleInput);
     canvas.addEventListener("click", handleInput);
-    canvas.addEventListener("touchstart", handleInput, { passive: false });
+    canvas.addEventListener("touchstart", handleInput, { passive:false });
 
     function handleInput(e) {
       e.preventDefault();
-
-      if (!audioUnlocked) {
-        unlockAudio();
-        audioUnlocked = true;
-      }
-
-      const rect = canvas.getBoundingClientRect();
-      const scaleX = canvas.width / rect.width;
-      const scaleY = canvas.height / rect.height;
-
-      let mx, my;
-      if (e.touches) {
-        mx = (e.touches[0].clientX - rect.left) * scaleX;
-        my = (e.touches[0].clientY - rect.top) * scaleY;
-      } else {
-        mx = (e.clientX - rect.left) * scaleX;
-        my = (e.clientY - rect.top) * scaleY;
-      }
-
-      // --- Mode selection only before first start ---
       if (!gameStarted) {
-        if (mx >= 80 && mx <= 280 && my >= 220 && my <= 270) { // Easy
-          mode = "easy";
-          gap = 140;
-          pipeVariation = 50;
-          gameStarted = true;
-          resetGame();
-          loop();
-        } else if (mx >= 80 && mx <= 280 && my >= 300 && my <= 350) { // Normal
-          mode = "normal";
-          gap = 120;
-          pipeVariation = canvas.height / 2 - gap;
-          gameStarted = true;
-          resetGame();
-          loop();
-        }
+        resetGame();
+        loop();
+        gameStarted = true;
         return;
       }
-
-      // --- Restart after game over ---
       if (gameOver) {
-        if (mx >= 120 && mx <= 240 && my >= canvas.height / 2 + 40 && my <= canvas.height / 2 + 80) {
-          resetGame(); // restart with same mode
-          return;
-        }
+        resetGame();
+        return;
       }
-
-      // --- Flap ---
       bird.velocity = bird.lift;
-      playFlapSound();
+      playFlap();
     }
 
-    function playFlapSound() {
-      const sound = flapSound.cloneNode();
-      sound.play();
-    }
-
-    // --- Reset game ---
     function resetGame() {
       bird.y = 150;
       bird.velocity = 0;
@@ -160,141 +253,89 @@
       score = 0;
       frame = 0;
       gameOver = false;
-
-      if (currentDeathSound) {
-        currentDeathSound.pause();
-        currentDeathSound.currentTime = 0;
-        currentDeathSound = null;
-      }
     }
 
-    // --- Game logic ---
     function update() {
       bird.velocity += bird.gravity;
       bird.y += bird.velocity;
-
       if (bird.y + bird.height >= canvas.height - ground.height) {
-        playRandomDeathSound();
+        playRandomDeath();
         gameOver = true;
-        updateHighScore();
+        submitScoreToSheet(currentPlayer, score);
+        loadLeaderboard();
       }
-
       if (frame % 90 === 0) {
-        let centerY = canvas.height / 2;
-        let variation = pipeVariation || (canvas.height / 2 - gap);
-        let pipeY = centerY + Math.floor(Math.random() * variation * 2) - variation;
-        pipes.push({ x: canvas.width, y: pipeY, scored: false });
+        let pipeY = canvas.height/2 + Math.floor(Math.random()*200) - 100;
+        pipes.push({ x: canvas.width, y: pipeY, scored:false });
       }
-
       pipes.forEach(p => {
         p.x -= 2;
-
-        if (
-          bird.x < p.x + pipeTop.width &&
+        if (bird.x < p.x + pipeTop.width &&
           bird.x + bird.width > p.x &&
-          (bird.y < p.y || bird.y + bird.height > p.y + gap)
-        ) {
-          playRandomDeathSound();
+          (bird.y < p.y || bird.y + bird.height > p.y + gap)) {
+          playRandomDeath();
           gameOver = true;
-          updateHighScore();
+          submitScoreToSheet(currentPlayer, score);
+          loadLeaderboard();
         }
-
         if (!p.scored && p.x + pipeTop.width < bird.x) {
           score++;
           p.scored = true;
           pointSound.cloneNode().play();
         }
       });
-
       pipes = pipes.filter(p => p.x + pipeTop.width > 0);
       groundX = (groundX - 2) % canvas.width;
     }
 
-    function updateHighScore() {
-      if (score > highScore) {
-        highScore = score;
-        localStorage.setItem("highScore", highScore);
-      }
-    }
-
-    function playRandomDeathSound() {
-      if (currentDeathSound) currentDeathSound.pause();
-      const sound = deathSounds[Math.floor(Math.random() * deathSounds.length)].cloneNode();
-      sound.play();
-      currentDeathSound = sound;
-    }
-
-    // --- Drawing ---
     function draw() {
       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
-
-      // Mode selection only before first start
-      if (!gameStarted) {
-        ctx.fillStyle = "#fff";
-        ctx.font = "28px Arial";
-        ctx.fillText("Select Mode", 100, 150);
-
-        ctx.fillStyle = "#4CAF50";
-        ctx.fillRect(80, 220, 200, 50);
-        ctx.fillStyle = "#fff";
-        ctx.fillText("EASY", 160, 255);
-
-        ctx.fillStyle = "#F44336";
-        ctx.fillRect(80, 300, 200, 50);
-        ctx.fillStyle = "#fff";
-        ctx.fillText("NORMAL", 140, 335);
-
-        return; // don't draw game yet
-      }
-
-      // --- Game draw ---
       pipes.forEach(p => {
         ctx.drawImage(pipeTop, p.x, p.y - pipeTop.height);
         ctx.drawImage(pipeBottom, p.x, p.y + gap);
       });
-
       ctx.drawImage(ground, groundX, canvas.height - ground.height);
       ctx.drawImage(ground, groundX + canvas.width, canvas.height - ground.height);
-
       ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
-
       ctx.fillStyle = "#fff";
       ctx.font = "24px Arial";
       ctx.fillText("Score: " + score, 10, 30);
-      ctx.fillText("Best: " + highScore, 10, 60);
 
-      // Game over overlay
+      // draw leaderboard overlay
+      if (leaderboard && leaderboard.length > 0) {
+        ctx.font = "16px Arial";
+        ctx.fillStyle = "#fff";
+        let x = canvas.width - 140;
+        let y = 30;
+        ctx.fillText("Leaderboard:", x, y);
+        leaderboard.forEach((e, i) => {
+          ctx.fillText(`${i+1}. ${e[0]} ${e[1]}`, x, y + 20 + i*20);
+        });
+      }
+
       if (gameOver) {
         ctx.fillStyle = "rgba(0,0,0,0.5)";
-        ctx.fillRect(30, canvas.height / 2 - 100, 300, 200);
-
+        ctx.fillRect(30, canvas.height/2 - 100, 300, 200);
         ctx.fillStyle = "#fff";
         ctx.font = "32px Arial";
-        ctx.fillText("Game Over!", 95, canvas.height / 2 - 50);
-
+        ctx.fillText("Game Over!", 95, canvas.height/2 - 50);
         ctx.font = "20px Arial";
-        ctx.fillText("Score: " + score, 140, canvas.height / 2 - 10);
-        ctx.fillText("Best: " + highScore, 140, canvas.height / 2 + 20);
-
-        ctx.fillStyle = "#fff";
-        ctx.fillRect(120, canvas.height / 2 + 40, 120, 40);
-        ctx.fillStyle = "#000";
-        ctx.font = "18px Arial";
-        ctx.fillText("RESTART", 140, canvas.height / 2 + 70);
+        ctx.fillText("Score: " + score, 140, canvas.height/2);
       }
     }
 
-    // --- Game loop ---
     function loop() {
-      if (!gameOver) {
-        update();
-        frame++;
+      if (!paused) {
+        if (!gameOver) {
+          update();
+          frame++;
+        }
       }
       draw();
       requestAnimationFrame(loop);
     }
 
-    draw(); // initial render
+    draw();
   </script>
 </body>
 </html>
